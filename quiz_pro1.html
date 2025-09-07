@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Комплексный тест по электробезопасности</title>
+<style>
+body{font-family:sans-serif;background:#f4f4f4;margin:0;padding:20px;}
+.container{max-width:900px;margin:auto;background:#fff;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
+h1{text-align:center;}
+.hidden{display:none;}
+.question{margin:20px 0;font-weight:bold;}
+.options div{padding:10px;border:1px solid #ccc;border-radius:5px;margin:5px 0;cursor:pointer;}
+.options div.selected{background:#e0e7ff;border-color:#667eea;}
+.options div.correct{background:#10b981;color:#fff;}
+.options div.incorrect{background:#ef4444;color:#fff;}
+button{padding:10px 20px;margin-top:20px;border:none;border-radius:5px;cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Комплексный тест по электробезопасности</h1>
+<div id="setup">
+<p>Загрузка вопросов из Google Sheets...</p>
+</div>
+<div id="quiz" class="hidden">
+<div id="questionText" class="question"></div>
+<div id="optionsContainer" class="options"></div>
+<button id="nextBtn" disabled>Следующий</button>
+</div>
+<div id="results" class="hidden">
+<h2>Результаты</h2>
+<p id="score"></p>
+<button onclick="location.reload()">Начать заново</button>
+</div>
+</div>
+
+<script>
+const SHEETS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRP_Ypwcp2PxuRgYqYSN9CFIJqsZDM8g8N6xMYcuEdqACRAlNi5cAlF_9bu3yEcSS-fTKUn-lLZJ61t/pub?gid=1466318279&single=true&output=csv';
+const APPS_SCRIPT_URL = 'ТВОЙ_WEB_APP_EXEC_URL';
+
+let questions = [];
+let currentIndex = 0, correct = 0;
+
+async function loadQuestions() {
+    try {
+        const response = await fetch(SHEETS_URL);
+        if (!response.ok) throw new Error();
+        const csv = await response.text();
+        parseCSV(csv);
+    } catch {
+        console.warn("Ошибка загрузки CSV, загружаем локальный fallback");
+        const local = await fetch('questions.json');
+        const data = await local.json();
+        questions = data;
+        startQuiz();
+    }
+}
+
+function parseCSV(csv) {
+    const rows = csv.split('\n').map(r=>r.split(','));
+    const headers = rows.shift().map(h=>h.trim());
+    const idx = {
+        category: headers.indexOf('Category'),
+        question: headers.indexOf('Question'),
+        a: headers.indexOf('Option_A'),
+        b: headers.indexOf('Option_B'),
+        c: headers.indexOf('Option_C'),
+        d: headers.indexOf('Option_D'),
+        correct: headers.indexOf('Correct')
+    };
+    questions = rows.filter(r=>r.length>5).map(r=>({
+        category: r[idx.category],
+        question: r[idx.question],
+        options: [r[idx.a], r[idx.b], r[idx.c], r[idx.d]].filter(Boolean),
+        correct: r[idx.correct]?.trim().toUpperCase()
+    }));
+    startQuiz();
+}
+
+function startQuiz() {
+    document.getElementById('setup').classList.add('hidden');
+    document.getElementById('quiz').classList.remove('hidden');
+    loadQuestion();
+}
+
+function loadQuestion() {
+    if (currentIndex >= questions.length) return showResults();
+    const q = questions[currentIndex];
+    document.getElementById('questionText').textContent = q.question;
+    const container = document.getElementById('optionsContainer');
+    container.innerHTML = '';
+    ['A','B','C','D'].forEach((label,i)=>{
+        if (q.options[i]) {
+            const div = document.createElement('div');
+            div.textContent = `${label}: ${q.options[i]}`;
+            div.onclick = ()=>selectOption(div,label);
+            container.appendChild(div);
+        }
+    });
+    document.getElementById('nextBtn').disabled = true;
+}
+
+function selectOption(div, label) {
+    const q = questions[currentIndex];
+    document.querySelectorAll('.options div').forEach(d=>d.onclick=null);
+    if (label === q.correct) {
+        div.classList.add('correct');
+        correct++;
+    } else {
+        div.classList.add('incorrect');
+        document.querySelectorAll('.options div').forEach(d=>{
+            if (d.textContent.startsWith(q.correct+':')) d.classList.add('correct');
+        });
+    }
+    document.getElementById('nextBtn').disabled = false;
+}
+
+document.getElementById('nextBtn').addEventListener('click',()=>{
+    currentIndex++;
+    loadQuestion();
+});
+
+function showResults() {
+    document.getElementById('quiz').classList.add('hidden');
+    document.getElementById('results').classList.remove('hidden');
+    const score = Math.round((correct / questions.length)*100);
+    document.getElementById('score').textContent = `Ваш результат: ${score}% (${correct} из ${questions.length})`;
+    saveResults(score);
+}
+
+async function saveResults(score) {
+    try {
+        await fetch(APPS_SCRIPT_URL, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+                userName:'Аноним',
+                score:score,
+                answers:questions.map((q,i)=>({q:q.question,correct:q.correct}))
+            })
+        });
+    } catch(e){ console.warn("Сохранение не удалось", e); }
+}
+
+loadQuestions();
+</script>
+</body>
+</html>
