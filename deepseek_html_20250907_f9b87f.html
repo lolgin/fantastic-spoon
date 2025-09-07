@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест по электробезопасности (Интеграция с Google Таблицей)</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: linear-gradient(135deg, #667eea, #764ba2); color: #333; padding: 20px; min-height: 100vh; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 20px; }
+        .card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .btn { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; margin: 5px; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .hidden { display: none; }
+        .progress-bar { height: 10px; background: #e9ecef; border-radius: 5px; margin: 10px 0; overflow: hidden; }
+        .progress-fill { height: 100%; background: #007bff; width: 0%; transition: width 0.3s ease; }
+        .question { font-weight: bold; margin-bottom: 15px; font-size: 1.1em; }
+        .option { padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+        .option:hover { background-color: #f8f9fa; }
+        .option.correct { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .option.incorrect { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .option.disabled { pointer-events: none; opacity: 0.7; }
+        .stats { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 1.1em; }
+        .control-group { margin: 10px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; }
+        select, input[type="number"] { width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 5px; margin-bottom: 10px; }
+        .result-card { text-align: center; }
+        .result-value { font-size: 2em; font-weight: bold; margin: 10px 0; }
+        .status { padding: 10px; border-radius: 5px; margin: 10px 0; text-align: center; }
+        .status.loading { background-color: #fff3cd; color: #856404; }
+        .status.success { background-color: #d4edda; color: #155724; }
+        .status.error { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Заголовок -->
+        <div class="header">
+            <h1>Тест по электробезопасности</h1>
+            <p>Данные загружаются из Google Таблицы в реальном времени</p>
+            <div id="statusMessage" class="status"></div>
+        </div>
+
+        <!-- Карточка настроек -->
+        <div class="card" id="setupCard">
+            <h2>Настройки теста</h2>
+            <div class="control-group">
+                <label for="questionCount">Количество вопросов:</label>
+                <select id="questionCount">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="20">20</option>
+                    <option value="30">30</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="failureLimit">Максимальное количество ошибок:</label>
+                <select id="failureLimit">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3" selected>3</option>
+                    <option value="999">Без ограничений</option>
+                </select>
+            </div>
+            <button class="btn btn-success" id="startBtn">Начать тест</button>
+            <button class="btn btn-secondary" id="loadFromGoogleBtn">Обновить данные из Google Таблицы</button>
+            <p style="margin-top: 15px; font-size: 0.9em; color: #666;">
+                Ссылка на таблицу: <a href="https://docs.google.com/spreadsheets/d/1MHo4Bg942KP_E6CVrzAA8LSPcdI8fFieH1El9W8h640/edit?gid=1321010179" target="_blank">открыть</a>
+            </p>
+        </div>
+
+        <!-- Карточка теста -->
+        <div class="card hidden" id="quizCard">
+            <div class="stats">
+                <span>Вопрос: <span id="currentQuestion">1</span>/<span id="totalQuestions">10</span></span>
+                <span>Правильно: <span id="correctCount">0</span></span>
+                <span>Ошибки: <span id="errorCount">0</span>/<span id="maxErrors">3</span></span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar"></div>
+            </div>
+            <div class="question" id="questionText">Загрузка вопроса...</div>
+            <div id="optionsContainer">
+                <!-- Варианты ответов будут здесь -->
+            </div>
+            <button class="btn btn-primary hidden" id="nextBtn">Следующий вопрос</button>
+        </div>
+
+        <!-- Карточка результатов -->
+        <div class="card hidden result-card" id="resultCard">
+            <h2>Тест завершен!</h2>
+            <p>Ваш результат:</p>
+            <div class="result-value" id="scoreValue">0%</div>
+            <div class="stats">
+                <div>Правильных ответов: <span id="finalCorrect">0</span></div>
+                <div>Неправильных ответов: <span id="finalErrors">0</span></div>
+                <div>Всего вопросов: <span id="finalTotal">0</span></div>
+            </div>
+            <button class="btn btn-success" id="restartBtn">Пройти тест again</button>
+            <button class="btn btn-secondary" id="backToSetupBtn">Изменить настройки</button>
+            <div id="saveResultStatus" class="status" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <script>
+        // КОНФИГУРАЦИЯ
+        const PUBLIC_TSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRP_Ypwcp2PxuRgYqYSN9CFIJqsZDM8g8N6xMYcuEdqACRAlNi5cAlF_9bu3yEcSS-fTKUn-lLZJ61t/pub?gid=1466318279&single=true&output=tsv';
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbx9bh8qElV5SQJyXYjAGxJ8LTtJDiSDsaOfG3KT9c-uYKWQWCAO4gXJ5ncZalCbyJ9F/exec';
+
+        // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+        let allQuestions = [];
+        let currentTestQuestions = [];
+        let currentQuestionIndex = 0;
+        let correctAnswersCount = 0;
+        let incorrectAnswersCount = 0;
+        let testConfig = {
+            totalQuestions: 10,
+            maxErrors: 3
+        };
+
+        // ЭЛЕМЕНТЫ ДОМ
+        const statusMessage = document.getElementById('statusMessage');
+        const setupCard = document.getElementById('setupCard');
+        const quizCard = document.getElementById('quizCard');
+        const resultCard = document.getElementById('resultCard');
+        const startBtn = document.getElementById('startBtn');
+        const loadFromGoogleBtn = document.getElementById('loadFromGoogleBtn');
+        const nextBtn = document.getElementById('nextBtn');
+
+        // ПОКАЗАТЬ СТАТУС
+        function showStatus(message, type = '') {
+            statusMessage.textContent = message;
+            statusMessage.className = 'status';
+            if (type) statusMessage.classList.add(type);
+        }
+
+        // ЗАГРУЗИТЬ ДАННЫЕ ИЗ GOOGLE TABLES (TSV)
+        async function loadQuestionsFromGoogle() {
+            showStatus('Загрузка вопросов из Google Таблицы...', 'loading');
+            
+            try {
+                const response = await fetch(PUBLIC_TSV_URL);
+                if (!response.ok) throw new Error(`Ошибка HTTP: ${response.status}`);
+                
+                const tsvData = await response.text();
+                const questions = parseTSV(tsvData);
+                
+                if (questions.length === 0) throw new Error('Не удалось распарсить данные. Проверьте формат TSV.');
+                
+                allQuestions = questions;
+                showStatus(`Данные загружены успешно! Вопросов: ${allQuestions.length}`, 'success');
+                setTimeout(() => showStatus(''), 3000);
+                return true;
+                
+            } catch (error) {
+                console.error('Ошибка загрузки:', error);
+                showStatus(`Ошибка: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // ПАРСИНГ TSV
+        function parseTSV(tsv) {
+            const lines = tsv.split('\n').filter(line => line.trim());
+            const questions = [];
+            
+            // Пропускаем заголовок (первую строку)
+            for (let i = 1; i < lines.length; i++) {
+                const cells = lines[i].split('\t');
+                
+                if (cells.length >= 4) {
+                    questions.push({
+                        category: cells[0]?.trim() || 'Без категории',
+                        question: cells[1]?.trim() || 'Без текста',
+                        options: cells[2]?.split('|').map(opt => opt.trim()) || [],
+                        correct: cells[3]?.trim().toLowerCase() || 'a'
+                    });
+                }
+            }
+            return questions;
+        }
+
+        // НАЧАТЬ ТЕСТ
+        function startTest() {
+            testConfig.totalQuestions = parseInt(document.getElementById('questionCount').value);
+            testConfig.maxErrors = parseInt(document.getElementById('failureLimit').value);
+            
+            if (allQuestions.length === 0) {
+                showStatus('Нет вопросов для теста. Загрузите данные сначала.', 'error');
+                return;
+            }
+            
+            if (allQuestions.length < testConfig.totalQuestions) {
+                showStatus(`Внимание: В базе только ${allQuestions.length} вопросов. Будет использовано все доступные.`, 'loading');
+                testConfig.totalQuestions = allQuestions.length;
+            }
+            
+            // Выбираем случайные вопросы
+            currentTestQuestions = [...allQuestions];
+            shuffleArray(currentTestQuestions);
+            currentTestQuestions = currentTestQuestions.slice(0, testConfig.totalQuestions);
+            
+            currentQuestionIndex = 0;
+            correctAnswersCount = 0;
+            incorrectAnswersCount = 0;
+            
+            setupCard.classList.add('hidden');
+            quizCard.classList.remove('hidden');
+            resultCard.classList.add('hidden');
+            
+            showStatus('');
+            displayQuestion();
+        }
+
+        // ОТОБРАЗИТЬ ВОПРОС
+        function displayQuestion() {
+            if (currentQuestionIndex >= currentTestQuestions.length || incorrectAnswersCount >= testConfig.maxErrors) {
+                finishTest();
+                return;
+            }
+            
+            const question = currentTestQuestions[currentQuestionIndex];
+            document.getElementById('currentQuestion').textContent = currentQuestionIndex + 1;
+            document.getElementById('totalQuestions').textContent = currentTestQuestions.length;
+            document.getElementById('correctCount').textContent = correctAnswersCount;
+            document.getElementById('errorCount').textContent = incorrectAnswersCount;
+            document.getElementById('maxErrors').textContent = testConfig.maxErrors;
+            
+            // Прогресс бар
+            const progress = ((currentQuestionIndex) / currentTestQuestions.length) * 100;
+            document.getElementById('progressBar').style.width = `${progress}%`;
+            
+            // Текст вопроса
+            document.getElementById('questionText').textContent = question.question;
+            
+            // Варианты ответов
+            const optionsContainer = document.getElementById('optionsContainer');
+            optionsContainer.innerHTML = '';
+            
+            question.options.forEach((option, index) => {
+                const optionElement = document.createElement('div');
+                optionElement.className = 'option';
+                optionElement.textContent = option;
+                optionElement.dataset.value = String.fromCharCode(97 + index); // a, b, c, d
+                
+                optionElement.addEventListener('click', () => checkAnswer(optionElement, question.correct));
+                optionsContainer.appendChild(optionElement);
+            });
+            
+            nextBtn.classList.add('hidden');
+        }
+
+        // ПРОВЕРИТЬ ОТВЕТ
+        function checkAnswer(selectedOption, correctAnswer) {
+            const options = document.querySelectorAll('.option');
+            options.forEach(opt => opt.classList.add('disabled'));
+            
+            // Показываем правильный ответ
+            options.forEach(opt => {
+                if (opt.dataset.value === correctAnswer) {
+                    opt.classList.add('correct');
+                }
+            });
+            
+            if (selectedOption.dataset.value === correctAnswer) {
+                selectedOption.classList.add('correct');
+                correctAnswersCount++;
+                document.getElementById('correctCount').textContent = correctAnswersCount;
+            } else {
+                selectedOption.classList.add('incorrect');
+                incorrectAnswersCount++;
+                document.getElementById('errorCount').textContent = incorrectAnswersCount;
+            }
+            
+            nextBtn.classList.remove('hidden');
+        }
+
+        // СЛЕДУЮЩИЙ ВОПРОС
+        function nextQuestion() {
+            currentQuestionIndex++;
+            displayQuestion();
+        }
+
+        // ЗАВЕРШИТЬ ТЕСТ
+        function finishTest() {
+            const score = Math.round((correctAnswersCount / currentTestQuestions.length) * 100);
+            
+            document.getElementById('scoreValue').textContent = `${score}%`;
+            document.getElementById('finalCorrect').textContent = correctAnswersCount;
+            document.getElementById('finalErrors').textContent = incorrectAnswersCount;
+            document.getElementById('finalTotal').textContent = currentTestQuestions.length;
+            
+            quizCard.classList.add('hidden');
+            resultCard.classList.remove('hidden');
+            
+            // Отправляем результат в Google Таблицу
+            saveTestResult(score);
+        }
+
+        // СОХРАНИТЬ РЕЗУЛЬТАТ В ТАБЛИЦУ
+        async function saveTestResult(score) {
+            const statusElement = document.getElementById('saveResultStatus');
+            statusElement.textContent = 'Отправка результатов...';
+            statusElement.className = 'status loading';
+            
+            const resultData = {
+                date: new Date().toLocaleString('ru-RU'),
+                score: score,
+                correct: correctAnswersCount,
+                incorrect: incorrectAnswersCount,
+                total: currentTestQuestions.length
+            };
+            
+            try {
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(resultData)
+                });
+                
+                if (!response.ok) throw new Error('Ошибка при отправке данных');
+                
+                const result = await response.text();
+                statusElement.textContent = 'Результаты успешно сохранены в Google Таблицу!';
+                statusElement.className = 'status success';
+                
+            } catch (error) {
+                console.error('Ошибка сохранения:', error);
+                statusElement.textContent = 'Ошибка при сохранении в таблицу. ' + error.message;
+                statusElement.className = 'status error';
+            }
+        }
+
+        // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // ОБРАБОТЧИКИ СОБЫТИЙ
+        startBtn.addEventListener('click', startTest);
+        loadFromGoogleBtn.addEventListener('click', loadQuestionsFromGoogle);
+        nextBtn.addEventListener('click', nextQuestion);
+        document.getElementById('restartBtn').addEventListener('click', startTest);
+        document.getElementById('backToSetupBtn').addEventListener('click', () => {
+            resultCard.classList.add('hidden');
+            setupCard.classList.remove('hidden');
+        });
+
+        // ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ
+        document.addEventListener('DOMContentLoaded', () => {
+            showStatus('Загрузка вопросов...', 'loading');
+            loadQuestionsFromGoogle();
+        });
+    </script>
+</body>
+</html>
