@@ -21,7 +21,7 @@ button{padding:10px 20px;margin-top:20px;border:none;border-radius:5px;cursor:po
 <div class="container">
 <h1>Комплексный тест по электробезопасности</h1>
 <div id="setup">
-<p>Загрузка вопросов из Google Sheets...</p>
+<p>Загрузка вопросов...</p>
 </div>
 <div id="quiz" class="hidden">
 <div id="questionText" class="question"></div>
@@ -37,7 +37,7 @@ button{padding:10px 20px;margin-top:20px;border:none;border-radius:5px;cursor:po
 
 <script>
 const SHEETS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRP_Ypwcp2PxuRgYqYSN9CFIJqsZDM8g8N6xMYcuEdqACRAlNi5cAlF_9bu3yEcSS-fTKUn-lLZJ61t/pub?gid=1466318279&single=true&output=csv';
-const APPS_SCRIPT_URL = 'ТВОЙ_WEB_APP_EXEC_URL';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwbV91jUVzKWI_p2k6KoyPLMxjqsOo3wC5a8BA92TShjyl4P2yz-7MELugEe0IBkerp/exec';
 
 let questions = [];
 let currentIndex = 0, correct = 0;
@@ -49,11 +49,7 @@ async function loadQuestions() {
         const csv = await response.text();
         parseCSV(csv);
     } catch {
-        console.warn("Ошибка загрузки CSV, загружаем локальный fallback");
-        const local = await fetch('questions.json');
-        const data = await local.json();
-        questions = data;
-        startQuiz();
+        alert("Ошибка загрузки вопросов. Проверьте доступность Google Sheets.");
     }
 }
 
