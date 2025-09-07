@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Тест по электробезопасности 2025</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .question { margin-bottom: 20px; }
+    button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    input[type="text"] { margin-bottom: 10px; padding: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Комплексный тест по электробезопасности</h1>
+  <label>Ваше имя: <input type="text" id="userName" placeholder="Введите имя"></label>
+  <div id="quiz"></div>
+  <button onclick="submitAnswers()">Отправить</button>
+
+  <script>
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx9bh8qElV5SQJyXYjAGxJ8LTtJDiSDsaOfG3KT9c-uYKWQWCAO4gXJ5ncZalCbyJ9F/exec';
+
+    // Загрузка вопросов
+    async function loadQuestions() {
+      try {
+        const response = await fetch(APPS_SCRIPT_URL);
+        const questions = await response.json();
+        localStorage.setItem('questions', JSON.stringify(questions)); // Сохранение в LocalStorage
+        displayQuestions(questions);
+      } catch (e) {
+        console.error('Ошибка загрузки вопросов:', e);
+        // Загрузка из LocalStorage, если есть
+        const cachedQuestions = localStorage.getItem('questions');
+        if (cachedQuestions) {
+          displayQuestions(JSON.parse(cachedQuestions));
+        } else {
+          alert('Нет сети и нет сохранённых вопросов.');
+        }
+      }
+    }
+
+    // Отображение вопросов
+    function displayQuestions(questions) {
+      const quizDiv = document.getElementById('quiz');
+      quizDiv.innerHTML = '';
+      questions.forEach((q, index) => {
+        if (index === 0) return; // Пропустить заголовок
+        const options = q[2].split('|'); // Разделение вариантов ответа
+        let optionsHtml = options.map((opt, i) => `
+          <input type="radio" name="q${index}" value="${opt}">${opt}<br>
+        `).join('');
+        quizDiv.innerHTML += `
+          <div class="question">
+            <h3>${q[1]} (${q[0]})</h3>
+            ${optionsHtml}
+          </div>`;
+      });
+    }
+
+    // Отправка ответов
+    async function submitAnswers() {
+      const userName = document.getElementById('userName').value || 'Аноним';
+      const questions = JSON.parse(localStorage.getItem('questions')) || [];
+      const answers = [];
+      let score = 0;
+
+      questions.forEach((q, index) => {
+        if (index === 0) return; // Пропустить заголовок
+        const selected = document.querySelector(`input[name="q${index}"]:checked`);
+        const correctAnswers = q[3].split('|'); // Правильные ответы
+        const isCorrect = selected && correctAnswers.includes(selected.value);
+        if (isCorrect) score += 1;
+        answers.push({
+          question: q[1],
+          selected: selected ? selected.value : null,
+          correct: q[3]
+        });
+      });
+
+      // Отправка результатов
+      try {
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ userName, score, answers }),
+          headers: { 'Content-Type': 'application/json' },
+          mode: 'no-cors' // Для обхода CORS
+        });
+        alert(`Ваш результат: ${score} из ${answers.length}`);
+      } catch (e) {
+        console.error('Ошибка отправки результатов:', e);
+        alert(`Ваш результат: ${score} из ${answers.length}. Результаты не отправлены из-за ошибки сети.`);
+      }
+    }
+
+    // Загрузка вопросов при старте
+    loadQuestions();
+  </script>
+</body>
+</html>
