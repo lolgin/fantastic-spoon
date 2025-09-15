@@ -1,2 +1,4 @@
-# Тест [Пройти тест](https://lolgin.github.io/fantastic-spoon/quiz_pro.html)
-# Тест [Пройти тест](https://lolgin.github.io/fantastic-spoon/quiz_pro1.html)
+# Тест1 [Пройти тест](https://lolgin.github.io/fantastic-spoon/quiz_pro.html)
+# Тест2 [Пройти тест](https://lolgin.github.io/fantastic-spoon/quiz_pro1.html)
+# Тест3 [Пройти тест](https://lolgin.github.io/fantastic-spoon/test.html)
+# Тест4 [Пройти тест](https://lolgin.github.io/fantastic-spoon/electro_test_two_modes.html)
